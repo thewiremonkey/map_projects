@@ -1,0 +1,65 @@
+---
+title: "mapping geodata"
+author: "Alyssa Goldberg"
+date: "11/8/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+library(sp)
+library(sf)
+library(rgdal)
+library(geojsonsf)
+library(rgeos)
+
+library(ggplot2)
+```
+
+Pull down Boro boundaries and neighborhood tabulation data for NYC
+```{r}
+#page for valid download
+#https://www1.nyc.gov/site/planning/data-maps/open-data/dwn-nynta.page
+hoods_url<-"http://services5.arcgis.com/GfwWNkhOj9bNBqoJ/arcgis/rest/services/nynta/FeatureServer/0/query?where=1=1&outFields=*&outSR=4326&f=geojson"
+
+#read the geojson into an sf object as dataframe with polygons, transform it into a spatialPolygonDataFrame geojson_sf pulls in all of the data, geojson_sfc pulls in just the coordinates
+hoods<-geojsonsf::geojson_sf(hoods_url) %>% 
+  as_Spatial(.) %>% 
+  gBuffer(., byid=TRUE, width=0)
+
+hoods.df<-fortify(hoods)
+
+
+boro_names<-hoods@data %>% select(OBJECTID,BoroName) %>% 
+  mutate(id=as.character(OBJECTID))
+hoods.df<-fortify(hoods.sf, region = "OBJECTID") %>% 
+  left_join(boro_names)
+
+ggplot(hoods.df)+
+  geom_polygon(aes(x=long, y=lat, group=group, fill=BoroName), color="white")
+```
+This data has multipolygons, in order to turn into a spatialPolygonsDataFrame we need to turn the multipolygons into polygons
+```{r}
+hoods<-sf::st_cast(hoods, "POLYGON")
+
+
+sf::st_is_valid(hoods)# this creates a file with 107 objects
+hoods.sf<-as_Spatial(hoods)
+
+hoods.df<-fortify(hoods.sf, region='ntacode')
+setScale(1e05)
+```
+Let's take a look at the maps
+```{r}
+ggplot()+
+  geom_polygon(data=hoods.df, aes(x=long, y=lat, group=group), fill=NA, color="black")+
+  theme_void()
+```
+Let's join the boro data back in so we can color our neighborhoods
+```{r}
+hoods_boros.df<-hoods %>% select()
+```
+
